@@ -14,6 +14,7 @@
 <body class="bg-gray-50 min-h-screen flex flex-col items-center p-4">
   <div id="admin" class="w-full max-w-xl bg-white shadow-lg rounded-2xl p-6 fade-in">
     <h1 class="text-2xl font-bold mb-4 text-center">あみだくじ設定</h1>
+
     <label class="block font-semibold mb-1">参加者（1行ずつ）</label>
     <textarea id="players" class="w-full border rounded p-2 mb-4" rows="3">小泉
 久郷
@@ -47,20 +48,25 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
-    // ✅ 日本語完全対応 Base64
-    function encodeBase64Unicode(str) {
-      const bytes = new TextEncoder().encode(str);
-      let binary = '';
-      bytes.forEach(b => binary += String.fromCharCode(b));
-      return btoa(binary);
+    // ✅ UTF-8安全なBase64（日本語対応・どのブラウザでもOK）
+    function safeBase64Encode(obj) {
+      const json = JSON.stringify(obj);
+      const encoded = encodeURIComponent(json)
+        .replace(/%([0-9A-F]{2})/g, (_, p1) =>
+          String.fromCharCode(parseInt(p1, 16))
+        );
+      return btoa(encoded);
     }
-    function decodeBase64Unicode(str) {
-      const binary = atob(str);
-      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-      return new TextDecoder().decode(bytes);
+    function safeBase64Decode(str) {
+      const decoded = atob(str);
+      const percentEncoded = decoded
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('');
+      return JSON.parse(decodeURIComponent(percentEncoded));
     }
 
-    // 🎯 管理画面
+    // 🎯 管理画面モード
     function initAdminMode() {
       adminDiv.classList.remove('hidden');
       playDiv.classList.add('hidden');
@@ -76,21 +82,21 @@
           }
 
           const config = { players, results, fixed };
-          const encoded = encodeURIComponent(encodeBase64Unicode(JSON.stringify(config)));
+          const encoded = encodeURIComponent(safeBase64Encode(config));
 
-          // ✅ 公開用URL（リポジトリに合わせて変更可）
+          // ✅ GitHub Pages公開用URL
           const baseURL = "https://amidakuji1.github.io/amidakuji/";
           const url = `${baseURL}#data=${encoded}`;
 
           document.getElementById('shareUrl').value = url;
           document.getElementById('urlArea').classList.remove('hidden');
         } catch (e) {
-          alert('URL生成中にエラーが発生しました: ' + e.message);
+          alert("URL生成中にエラーが発生しました: " + e.message);
         }
       };
     }
 
-    // 🎯 あみだくじ画面
+    // 🎯 あみだくじ本体
     function startAmidakuji(config) {
       adminDiv.classList.add('hidden');
       playDiv.classList.remove('hidden');
@@ -101,10 +107,9 @@
       const spacingX = canvas.width / (columns + 1);
       const spacingY = canvas.height / 15;
       const lines = [];
-
       for (let i = 0; i < columns; i++) lines.push([]);
 
-      // ランダム横線生成
+      // 横線ランダム生成
       for (let y = 1; y < 14; y++) {
         if (Math.random() < 0.5) {
           const pos = Math.floor(Math.random() * (columns - 1));
@@ -138,7 +143,7 @@
 
       drawLines();
 
-      // 結果マッピング
+      // 結果対応表
       const mapping = {};
       const shuffled = [...results];
       for (const name in fixed) {
@@ -149,7 +154,7 @@
       const remainingPlayers = players.filter(p => !fixed[p]);
       for (const p of remainingPlayers) mapping[p] = shuffled.pop();
 
-      // ボタン生成
+      // ボタン
       const btnContainer = document.getElementById('playerButtons');
       btnContainer.innerHTML = '';
       const resultDisplay = document.getElementById('resultDisplay');
@@ -162,7 +167,7 @@
         btnContainer.appendChild(btn);
       });
 
-      // 🌀 経路アニメーション（黒線上を正確にトレース）
+      // 経路アニメーション（線に正確追従）
       function animatePath(name) {
         drawLines();
         let col = players.indexOf(name);
@@ -172,15 +177,12 @@
 
         for (let i = 1; i <= 14; i++) {
           y = spacingY * i;
-          // 横線が右にある場合
           if (lines[col].includes(i)) {
             path.push([x, y]);
             x += spacingX;
             path.push([x, y]);
             col++;
-          }
-          // 横線が左にある場合
-          else if (col > 0 && lines[col - 1].includes(i)) {
+          } else if (col > 0 && lines[col - 1].includes(i)) {
             path.push([x, y]);
             x -= spacingX;
             path.push([x, y]);
@@ -210,14 +212,13 @@
       }
     }
 
-    // 起動処理
+    // 起動
     window.onload = () => {
       const hash = location.hash;
       if (hash && hash.startsWith('#data=')) {
         try {
           const encoded = hash.replace(/^#data=/, '');
-          const decoded = decodeBase64Unicode(decodeURIComponent(encoded));
-          const config = JSON.parse(decoded);
+          const config = safeBase64Decode(decodeURIComponent(encoded));
           startAmidakuji(config);
         } catch (e) {
           alert('データの読み込みに失敗しました。設定モードに戻ります。');
