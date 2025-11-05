@@ -1,326 +1,186 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>あみだくじ — 管理／共有版</title>
-<style>
-  /* Tailwind風シンプルスタイル（外部依存なし） */
-  :root{--bg:#0f172a;--card:#0b1220;--muted:#9aa4b2;--accent:#60a5fa;--glass:rgba(255,255,255,0.03)}
-  *{box-sizing:border-box}
-  body{font-family:system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Roboto, Arial; background:linear-gradient(180deg,#071029 0%, #07101a 60%); color:#e6eef8; margin:0; padding:28px; min-height:100vh}
-  .container{max-width:1100px;margin:0 auto}
-  .card{background:var(--card);border-radius:12px;padding:18px;margin-bottom:18px;box-shadow:0 8px 30px rgba(2,6,23,.6)}
-  h1{margin:0;font-size:18px}
-  .muted{color:var(--muted);font-size:13px}
-  label{display:block;margin-top:8px;font-size:14px}
-  textarea,input,select,button{width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
-  .row{display:flex;gap:12px}
-  .col{flex:1}
-  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .small{font-size:13px}
-  #canvasWrap{height:420px;background:linear-gradient(180deg,#081226, #04101a);border-radius:8px;padding:12px}
-  canvas{width:100%;height:100%;display:block;border-radius:6px;background:linear-gradient(180deg,#ffffff05,#00000000)}
-  .names{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .nameBtn{background:var(--glass);padding:8px 12px;border-radius:10px;cursor:pointer;border:1px solid rgba(255,255,255,0.02)}
-  .nameBtn:hover{transform:translateY(-2px)}
-  .fixedRow{display:flex;gap:8px;align-items:center;margin-top:8px}
-  .footerNote{color:#cbd5e1;font-size:13px;margin-top:8px}
-  .urlBox{background:#031026;padding:8px;border-radius:8px;border:1px dashed rgba(255,255,255,0.03);word-break:break-all}
-  .badge{background:rgba(255,255,255,0.03);padding:4px 8px;border-radius:999px;font-size:12px}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>あみだくじジェネレーター</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    canvas { width: 100%; height: 400px; border: 1px solid #ddd; }
+    .fade-in { animation: fadeIn 0.4s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
 </head>
-<body>
-<div class="container">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <h1>あみだくじ — 管理／共有版</h1>
-        <div class="muted">参加者・結果を設定し、URLを生成して共有できます（サーバー不要）。</div>
-      </div>
-      <div class="muted small">アニメーション速度: 通常 (約1.5秒)</div>
-    </div>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center p-4">
+  <div id="admin" class="w-full max-w-xl bg-white shadow-lg rounded-2xl p-6 fade-in">
+    <h1 class="text-2xl font-bold mb-4 text-center">あみだくじ設定</h1>
+    <label class="block font-semibold mb-1">参加者（1行ずつ）</label>
+    <textarea id="players" class="w-full border rounded p-2 mb-4" rows="3">小泉\n久郷\n吉田</textarea>
 
-    <div style="margin-top:12px" class="row">
-      <div class="col">
-        <label>参加者名（改行で複数）</label>
-        <textarea id="participants" rows="6" placeholder="例: 小泉\n久郷\n吉田">小泉
-久郷
-吉田</textarea>
-        <label class="small muted">※ 同名は避けてください。先頭から左→右の順で表示されます。</label>
-      </div>
-      <div class="col">
-        <label>結果（改行で複数）</label>
-        <textarea id="results" rows="6" placeholder="例: 27\n29\n休み">27
-29
-休み</textarea>
-        <label class="small muted">※ 参加者数と結果数を同じにしてください（人数と結果の本数は一致します）。</label>
-      </div>
-    </div>
+    <label class="block font-semibold mb-1">結果（1行ずつ）</label>
+    <textarea id="results" class="w-full border rounded p-2 mb-4" rows="3">27\n29\n休み</textarea>
 
-    <div style="margin-top:12px">
-      <label>固定マッピング（特定の参加者を特定結果に固定できます）</label>
-      <div id="fixedList"></div>
-      <div class="muted small" style="margin-top:6px">※ 固定設定しない項目は自動で割り当てられます。</div>
-    </div>
+    <label class="block font-semibold mb-1">固定設定（例: 小泉,休み）</label>
+    <textarea id="fixed" class="w-full border rounded p-2 mb-4" rows="2">小泉,休み</textarea>
 
-    <div style="margin-top:12px" class="controls">
-      <label style="width:auto;display:block">行数（横線の数）<input id="rows" type="number" min="6" value="18" style="width:100px;margin-left:8px;display:inline-block"/></label>
-      <label style="width:auto;display:block">ランダム種（オプション）<input id="seed" type="text" placeholder="(空=完全ランダム)" style="width:220px;margin-left:8px;display:inline-block"/></label>
-      <button id="apply">設定を適用</button>
-      <button id="genUrl">URL生成（共有用）</button>
-      <button id="reset">リセット</button>
-    </div>
-
-    <div class="footerNote">使い方: 参加者・結果を入力 → 固定マッピングを設定 → 「設定を適用」。参加者に共有する場合は「URL生成」を押して表示されたURLを送ってください。</div>
-  </div>
-
-  <div class="card" id="playCard">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <strong>あみだくじ（プレイ画面）</strong>
-        <div class="muted small">名前をクリックするとそのスタート位置から線をたどります（固定設定は反映されます）。</div>
-      </div>
-      <div id="urlArea" style="width:60%"></div>
-    </div>
-
-    <div id="canvasWrap" style="margin-top:12px">
-      <canvas id="canvas"></canvas>
-    </div>
-
-    <div style="margin-top:12px" id="nameButtons" class="names"></div>
-
-    <div style="margin-top:12px">
-      <div class="muted">下は結果（参加者が結果を確認するときは表示されます）</div>
-      <div id="bottomResults" style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap"></div>
+    <button id="generate" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded">URLを生成</button>
+    <div id="urlArea" class="mt-4 hidden">
+      <p class="font-semibold mb-1">共有用URL:</p>
+      <input id="shareUrl" readonly class="w-full border rounded p-2 text-sm" />
     </div>
   </div>
 
-  <div class="card muted small">注意: URLに埋め込まれた設定は**誰でも**ブラウザで確認可能です。機密性が必要ならサーバーレスの導入を検討してください。</div>
-</div>
+  <div id="play" class="hidden w-full max-w-3xl bg-white shadow-lg rounded-2xl p-6 mt-4 fade-in">
+    <h2 class="text-xl font-bold mb-2 text-center">あみだくじ</h2>
+    <canvas id="amidakuji"></canvas>
+    <div id="playerButtons" class="flex justify-center space-x-2 mt-4"></div>
+    <div id="resultDisplay" class="text-center mt-4 text-lg font-semibold"></div>
+  </div>
 
-<script>
-// ユーティリティ
-function q(id){return document.getElementById(id)}
-function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  <script>
+    const adminDiv = document.getElementById('admin');
+    const playDiv = document.getElementById('play');
+    const canvas = document.getElementById('amidakuji');
+    const ctx = canvas.getContext('2d');
 
-// Canvas setup
-const canvas = q('canvas'); const ctx = canvas.getContext('2d');
-function resize(){ const r = canvas.getBoundingClientRect(); canvas.width = Math.round(r.width * devicePixelRatio); canvas.height = Math.round(r.height * devicePixelRatio); }
-window.addEventListener('resize',()=>{resize(); draw(false)});
-resize();
+    function initAdminMode() {
+      adminDiv.classList.remove('hidden');
+      playDiv.classList.add('hidden');
 
-// State
-let state = {participants:[], results:[], fixed:{}, rows:18, seed:'', layout:[], mapping:[]};
-
-// Hash encode/decode
-function encodeConfig(cfg){try{const s=JSON.stringify(cfg); return encodeURIComponent(btoa(unescape(encodeURIComponent(s))));}catch(e){return ''}}
-function decodeConfig(hash){try{const raw = decodeURIComponent(hash); const json = decodeURIComponent(escape(atob(raw))); return JSON.parse(json);}catch(e){return null}}
-
-// UI: build fixed mapping rows
-function buildFixedUI(){ const wrap = q('fixedList'); wrap.innerHTML='';
-  const parts = state.participants; const res = state.results;
-  if(parts.length===0 || res.length===0) return;
-  parts.forEach((p,pi)=>{
-    const div = document.createElement('div'); div.className='fixedRow';
-    const span = document.createElement('div'); span.style.minWidth='120px'; span.textContent = p;
-    const sel = document.createElement('select'); sel.dataset.part = p;
-    const noneOpt = document.createElement('option'); noneOpt.value=''; noneOpt.textContent='固定なし'; sel.appendChild(noneOpt);
-    res.forEach((r,ri)=>{ const opt = document.createElement('option'); opt.value = String(ri); opt.textContent = r; sel.appendChild(opt); })
-    // restore existing
-    if(state.fixed[p]!==undefined){ sel.value = String(state.fixed[p]); }
-    sel.addEventListener('change',()=>{ const v = sel.value; if(v===''){ delete state.fixed[p]; } else { state.fixed[p]=parseInt(v,10); }});
-    div.appendChild(span); div.appendChild(sel); wrap.appendChild(div);
-  });
-}
-
-// Apply settings from form
-function applySettings(){ const partTxt = q('participants').value.trim(); const resTxt = q('results').value.trim();
-  state.participants = partTxt?partTxt.split('\n').map(s=>s.trim()).filter(Boolean):[];
-  state.results = resTxt?resTxt.split('\n').map(s=>s.trim()).filter(Boolean):[];
-  state.rows = Math.max(6, parseInt(q('rows').value,10) || 18);
-  state.seed = q('seed').value || '';
-  // clear fixed mapping and rebuild UI-preserving previous selections
-  const oldFixed = state.fixed || {};
-  state.fixed = {};
-  buildFixedUI();
-  buildNameButtons();
-  regenerateLayout();
-  renderURLArea('');
-}
-
-// Generate URL to share
-function genURL(){ const cfg = {participants:state.participants, results:state.results, fixed:state.fixed, rows:state.rows, seed:state.seed}; const enc = encodeConfig(cfg); if(!enc){ alert('URL生成に失敗しました'); return; } const url = location.origin + location.pathname + '#cfg=' + enc; renderURLArea(url); navigator.clipboard && navigator.clipboard.writeText(url).catch(()=>{}); }
-function renderURLArea(url){ const area = q('urlArea'); area.innerHTML = ''; if(url){ const div = document.createElement('div'); div.className='urlBox'; div.textContent = url; area.appendChild(div);} }
-
-// Handle load from hash
-function loadFromHash(){ if(!location.hash) return false; const m = location.hash.match(/cfg=(.+)$/); if(!m) return false; const cfg = decodeConfig(m[1]); if(!cfg) return false; // apply
-  q('participants').value = (cfg.participants||[]).join('\n'); q('results').value = (cfg.results||[]).join('\n'); q('rows').value = cfg.rows || 18; q('seed').value = cfg.seed || '';
-  state.participants = cfg.participants||[]; state.results = cfg.results||[]; state.rows = cfg.rows||18; state.seed = cfg.seed||''; state.fixed = cfg.fixed||{};
-  buildFixedUI(); buildNameButtons(); regenerateLayout(); renderURLArea(location.href);
-  return true;
-}
-
-// Regenerate layout & mapping
-function regenerateLayout(){ const n = state.participants.length; const rows = state.rows; if(n<=0) return; // create grid rows x (n-1)
-  const rand = makeRng(state.seed || (Math.random().toString()));
-  const grid = Array.from({length:rows},()=>Array(n-1).fill(false));
-  for(let r=0;r<rows;r++){
-    for(let c=0;c<n-1;c++){
-      if(c>0 && grid[r][c-1]) continue; // avoid adjacent
-      if(rand() < 0.18) grid[r][c]=true;
+      document.getElementById('generate').onclick = () => {
+        const players = document.getElementById('players').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const results = document.getElementById('results').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const fixed = {};
+        for (let i = 0; i < fixedPairs.length; i += 2) {
+          if (fixedPairs[i] && fixedPairs[i+1]) fixed[fixedPairs[i]] = fixedPairs[i+1];
+        }
+        const config = { players, results, fixed };
+        const encoded = encodeURIComponent(btoa(JSON.stringify(config)));
+        const url = `${location.origin}${location.pathname}#data=${encoded}`;
+        document.getElementById('shareUrl').value = url;
+        document.getElementById('urlArea').classList.remove('hidden');
+      };
     }
-  }
-  state.layout = grid;
-  // mapping: determine end positions by following lines
-  const mapping = [];
-  for(let s=0;s<n;s++){
-    let pos = s;
-    for(let r=0;r<rows;r++){
-      if(pos>0 && grid[r][pos-1]) pos = pos-1;
-      else if(pos < n-1 && grid[r][pos]) pos = pos+1;
+
+    function startAmidakuji(config) {
+      adminDiv.classList.add('hidden');
+      playDiv.classList.remove('hidden');
+
+      const { players, results, fixed } = config;
+      const columns = players.length;
+      canvas.width = canvas.clientWidth;
+      canvas.height = 400;
+
+      const spacingX = canvas.width / (columns + 1);
+      const spacingY = canvas.height / 15;
+      const lines = [];
+
+      for (let i = 0; i < columns; i++) {
+        lines.push([]);
+      }
+
+      for (let y = 1; y < 14; y++) {
+        if (Math.random() < 0.5) {
+          const pos = Math.floor(Math.random() * (columns - 1));
+          lines[pos].push(y);
+        }
+      }
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#333';
+
+      function drawLines() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < columns; i++) {
+          ctx.beginPath();
+          ctx.moveTo(spacingX * (i + 1), spacingY);
+          ctx.lineTo(spacingX * (i + 1), spacingY * 14);
+          ctx.stroke();
+        }
+        for (let i = 0; i < lines.length; i++) {
+          for (const y of lines[i]) {
+            ctx.beginPath();
+            ctx.moveTo(spacingX * (i + 1), spacingY * y);
+            ctx.lineTo(spacingX * (i + 2), spacingY * y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      drawLines();
+
+      const mapping = {};
+      const shuffled = [...results];
+      for (const name in fixed) {
+        mapping[name] = fixed[name];
+        const idx = shuffled.indexOf(fixed[name]);
+        if (idx !== -1) shuffled.splice(idx, 1);
+      }
+
+      const remainingPlayers = players.filter(p => !fixed[p]);
+      for (const p of remainingPlayers) {
+        mapping[p] = shuffled.pop();
+      }
+
+      const btnContainer = document.getElementById('playerButtons');
+      btnContainer.innerHTML = '';
+      const resultDisplay = document.getElementById('resultDisplay');
+
+      players.forEach(name => {
+        const btn = document.createElement('button');
+        btn.textContent = name;
+        btn.className = 'bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded';
+        btn.onclick = () => animatePath(name);
+        btnContainer.appendChild(btn);
+      });
+
+      function animatePath(name) {
+        drawLines();
+        const col = players.indexOf(name);
+        let x = spacingX * (col + 1);
+        let y = spacingY;
+        const path = [[x, y]];
+
+        for (let i = 1; i <= 14; i++) {
+          y = spacingY * i;
+          if (lines[col].includes(i)) {
+            x += spacingX;
+            col++;
+          } else if (col > 0 && lines[col - 1].includes(i)) {
+            x -= spacingX;
+            col--;
+          }
+          path.push([x, y]);
+        }
+
+        let i = 0;
+        function step() {
+          if (i >= path.length - 1) {
+            resultDisplay.textContent = `${name} の結果：${mapping[name]}`;
+            return;
+          }
+          ctx.beginPath();
+          ctx.moveTo(path[i][0], path[i][1]);
+          ctx.lineTo(path[i + 1][0], path[i + 1][1]);
+          ctx.strokeStyle = 'red';
+          ctx.stroke();
+          i++;
+          setTimeout(step, 100);
+        }
+        step();
+      }
     }
-    mapping.push(pos);
-  }
-  // mapping currently is permutation; we need to ensure fixed constraints: we will compute finalResultAssignment (participant index -> result index)
-  // Build list of result indices 0..n-1
-  const resultIndices = state.results.map((_,i)=>i);
-  // Apply fixed: for each fixed participant, assign that result index
-  const assignment = Array(n).fill(null); const assignedResults = new Set();
-  for(const [pName, resIdx] of Object.entries(state.fixed||{})){
-    const pIndex = state.participants.indexOf(pName);
-    if(pIndex!==-1 && resultIndices.includes(resIdx)){
-      assignment[pIndex] = resIdx; assignedResults.add(resIdx);
+
+    const hash = location.hash;
+    if (hash && hash.startsWith('#data=')) {
+      const encoded = hash.replace('#data=', '');
+      const decoded = atob(decodeURIComponent(encoded));
+      const config = JSON.parse(decoded);
+      startAmidakuji(config);
+    } else {
+      initAdminMode();
     }
-  }
-  // For remaining participants, assign randomly among remaining results
-  const remainingResults = resultIndices.filter(i=>!assignedResults.has(i));
-  // shuffle remainingResults using rand
-  for(let i=remainingResults.length-1;i>0;i--){ const j = Math.floor(rand()*(i+1)); [remainingResults[i], remainingResults[j]]=[remainingResults[j],remainingResults[i]]; }
-  let rr=0; for(let i=0;i<n;i++){ if(assignment[i]===null){ assignment[i] = remainingResults[rr++]; }}
-  state.mapping = assignment; // participant index -> result index
-  draw(false);
-}
-
-// RNG generator from string seed -> returns function that yields [0,1)
-function makeRng(seed){ // simple xorshift from hashed seed
-  let h = 2166136261 >>> 0;
-  for(let i=0;i<seed.length;i++){ h = Math.imul(h ^ seed.charCodeAt(i), 16777619); }
-  // create 4 uint32 state
-  let s0 = h >>> 0; let s1 = (h ^ 0x9e3779b9) >>> 0; let s2 = (h << 5) >>> 0; let s3 = (h ^ 0x85ebca6b) >>> 0;
-  return function(){
-    // xorshift128+ like
-    let t = s0 ^ (s0 << 11);
-    s0 = s1; s1 = s2; s2 = s3;
-    s3 = (s3 ^ (s3 >>> 19) ^ (t ^ (t >>> 8))) >>> 0;
-    return (s3 >>> 0) / 0x100000000;
-  }
-}
-
-// Drawing
-function draw(reveal){ resize(); const w = canvas.width, h = canvas.height; ctx.clearRect(0,0,w,h);
-  const padX = 60*devicePixelRatio; const padY = 40*devicePixelRatio; const areaW = w - padX*2; const areaH = h - padY*2;
-  const n = state.participants.length; const rows = Math.max(6, state.rows);
-  if(n===0) return;
-  const colX = i => Math.round(padX + (i/(n-1||1))*areaW);
-  // vertical lines
-  ctx.lineWidth = 3*devicePixelRatio; ctx.strokeStyle = '#cfe9ff';
-  for(let i=0;i<n;i++){ const x = colX(i); ctx.beginPath(); ctx.moveTo(x,padY); ctx.lineTo(x,padY+areaH); ctx.stroke(); }
-  // horizontal rungs (layout may be shorter than rows if not set)
-  ctx.lineWidth = 8*devicePixelRatio; ctx.lineCap='round'; ctx.strokeStyle='#89c2ff';
-  const grid = state.layout.length?state.layout:Array.from({length:rows},()=>Array(n-1).fill(false));
-  for(let r=0;r<grid.length;r++){
-    const y = Math.round(padY + (r/(grid.length-1||1))*areaH);
-    for(let c=0;c<n-1;c++){
-      if(grid[r][c]){ const x1=colX(c); const x2=colX(c+1); ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2,y); ctx.stroke(); }
-    }
-  }
-  // top labels
-  ctx.fillStyle='#e6eef8'; ctx.font = `${14*devicePixelRatio}px sans-serif`; ctx.textAlign='center';
-  for(let i=0;i<n;i++){ ctx.fillText(state.participants[i]||('P'+(i+1)), colX(i), padY-12*devicePixelRatio); }
-  // bottom results - hidden or shown
-  ctx.textAlign='center';
-  for(let i=0;i<n;i++){ const x = colX(i); const y = padY+areaH+18*devicePixelRatio; if(reveal){ ctx.fillText(state.results[state.mapping[i]]||'?', x, y); } else { ctx.fillText('?', x, y); }}
-}
-
-// Build name buttons
-function buildNameButtons(){ const wrap = q('nameButtons'); wrap.innerHTML=''; state.participants.forEach((p,pi)=>{
-  const btn = document.createElement('div'); btn.className='nameBtn'; btn.textContent = p; btn.dataset.index = pi; btn.addEventListener('click', ()=>{ startPlay(pi); }); wrap.appendChild(btn);
-}); // bottom results
-  const br = q('bottomResults'); br.innerHTML=''; state.results.forEach((r,ri)=>{ const d=document.createElement('div'); d.className='badge'; d.textContent = r; d.dataset.index = ri; br.appendChild(d); });
-}
-
-// Animate tracing from start column
-let animating = false;
-function startPlay(startIdx){ if(animating) return; animating = true; const n = state.participants.length; const rows = Math.max(6, state.rows); const grid = state.layout.length?state.layout:Array.from({length:rows},()=>Array(n-1).fill(false));
-  // build path points along vertical positions
-  const padX = 60*devicePixelRatio; const padY = 40*devicePixelRatio; const rect = canvas.getBoundingClientRect(); const w = canvas.width, h = canvas.height; const areaW = w - padX*2; const areaH = h - padY*2;
-  const colX = i => Math.round(padX + (i/(n-1||1))*areaW);
-  const points = [];
-  let pos = startIdx; points.push({x:colX(pos), y:padY});
-  for(let r=0;r<grid.length;r++){
-    const y = Math.round(padY + (r/(grid.length-1||1))*areaH);
-    // if there's rung to left at this row and pos>0 and grid[r][pos-1]
-    if(pos>0 && grid[r][pos-1]){
-      // horizontal left: go to x of left column then down
-      points.push({x:colX(pos-1), y:y}); pos = pos-1; points.push({x:colX(pos), y:y});
-    } else if(pos < n-1 && grid[r][pos]){
-      points.push({x:colX(pos+1), y:y}); pos = pos+1; points.push({x:colX(pos), y:y});
-    }
-    // go down slightly to next row start (we create a vertical segment)
-    const ny = Math.round(padY + ((r+1)/(grid.length-1||1))*areaH);
-    points.push({x:colX(pos), y:ny});
-  }
-  // final bottom point
-  points.push({x:colX(pos), y:padY+areaH});
-  // flatten points into a polyline and compute length
-  const segs = []; let totalLen=0;
-  for(let i=0;i<points.length-1;i++){ const a=points[i], b=points[i+1]; const dx=b.x-a.x, dy=b.y-a.y; const L=Math.hypot(dx,dy); segs.push({a,b,L,dx,dy}); totalLen+=L; }
-  // animation duration ~1.5s
-  const duration = 1500; let start = null; function step(ts){ if(!start) start=ts; const t = Math.min(1,(ts-start)/duration); const dist = t*totalLen; // find segment
-    let acc=0; let cur=null; let segIndex=0; for(let i=0;i<segs.length;i++){ if(acc+segs[i].L >= dist){ cur=segs[i]; segIndex=i; break;} acc+=segs[i].L; }
-    let cx,cy; if(!cur){ const last = segs[segs.length-1].b; cx=last.x; cy=last.y; } else { const remain = dist-acc; const ratio = cur.L?remain/cur.L:0; cx = cur.a.x + cur.dx*ratio; cy = cur.a.y + cur.dy*ratio; }
-    // redraw and overlay marker
-    draw(false);
-    // overlay path drawn so far
-    ctx.lineWidth = 6*devicePixelRatio; ctx.lineCap='round'; ctx.strokeStyle = '#ffd580'; ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
-    // draw through completed segments
-    for(let i=0;i<segIndex;i++){ ctx.lineTo(segs[i].b.x, segs[i].b.y); }
-    ctx.lineTo(cx,cy); ctx.stroke();
-    // marker
-    ctx.beginPath(); ctx.fillStyle='#ffb86b'; ctx.arc(cx,cy,8*devicePixelRatio,0,Math.PI*2); ctx.fill();
-    if(t<1) requestAnimationFrame(step); else { // finished
-      animating=false; // reveal result for this start position based on state.mapping
-      const pIdx = startIdx; const assignedResultIndex = state.mapping[pIdx]; showRevealForColumn(assignedResultIndex);
-    }
-  }
-  requestAnimationFrame(step);
-}
-
-function showRevealForColumn(resultIdx){ // highlight bottom result for everyone
-  draw(true);
-  // highlight specific badge
-  const badges = Array.from(q('bottomResults').children); badges.forEach(b=>{ if(parseInt(b.dataset.index,10)===resultIdx){ b.style.background = 'linear-gradient(90deg,#ffd580,#ffb86b)'; b.style.color='#05202a'; b.style.fontWeight='700'; } else { b.style.background='rgba(255,255,255,0.03)'; b.style.color='#e6eef8'; b.style.fontWeight='400'; }});
-}
-
-// Wire UI
-q('apply').addEventListener('click',()=>{ applySettings(); });
-q('genUrl').addEventListener('click',()=>{ genURL(); });
-q('reset').addEventListener('click',()=>{ if(confirm('全ての入力をリセットしますか？')){ q('participants').value=''; q('results').value=''; q('rows').value=18; q('seed').value=''; state={participants:[],results:[],fixed:{},rows:18,seed:'',layout:[],mapping:[]}; buildFixedUI(); buildNameButtons(); draw(false); renderURLArea(''); location.hash=''; }});
-
-// on start
-if(!loadFromHash()){ applySettings(); }
-
-// prevent accidental navigation when hash exists
-window.addEventListener('hashchange',()=>{ loadFromHash(); });
-
-// initial draw helper
-function drawInitial(){ draw(false); buildNameButtons(); }
-
-// ensure UI fixed select updates when participants change
-q('participants').addEventListener('input', ()=>{ buildFixedUI(); });
-q('results').addEventListener('input', ()=>{ buildFixedUI(); });
-
-</script>
+  </script>
 </body>
 </html>
