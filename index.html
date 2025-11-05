@@ -15,10 +15,14 @@
   <div id="admin" class="w-full max-w-xl bg-white shadow-lg rounded-2xl p-6 fade-in">
     <h1 class="text-2xl font-bold mb-4 text-center">あみだくじ設定</h1>
     <label class="block font-semibold mb-1">参加者（1行ずつ）</label>
-    <textarea id="players" class="w-full border rounded p-2 mb-4" rows="3">小泉\n久郷\n吉田</textarea>
+    <textarea id="players" class="w-full border rounded p-2 mb-4" rows="3">小泉
+久郷
+吉田</textarea>
 
     <label class="block font-semibold mb-1">結果（1行ずつ）</label>
-    <textarea id="results" class="w-full border rounded p-2 mb-4" rows="3">27\n29\n休み</textarea>
+    <textarea id="results" class="w-full border rounded p-2 mb-4" rows="3">27
+29
+休み</textarea>
 
     <label class="block font-semibold mb-1">固定設定（例: 小泉,休み）</label>
     <textarea id="fixed" class="w-full border rounded p-2 mb-4" rows="2">小泉,休み</textarea>
@@ -43,6 +47,7 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
+    // 🎯 管理画面モード
     function initAdminMode() {
       adminDiv.classList.remove('hidden');
       playDiv.classList.add('hidden');
@@ -53,16 +58,17 @@
         const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
         const fixed = {};
         for (let i = 0; i < fixedPairs.length; i += 2) {
-          if (fixedPairs[i] && fixedPairs[i+1]) fixed[fixedPairs[i]] = fixedPairs[i+1];
+          if (fixedPairs[i] && fixedPairs[i + 1]) fixed[fixedPairs[i]] = fixedPairs[i + 1];
         }
         const config = { players, results, fixed };
-        const encoded = encodeURIComponent(btoa(JSON.stringify(config)));
+        const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(config)))));
         const url = `${location.origin}${location.pathname}#data=${encoded}`;
         document.getElementById('shareUrl').value = url;
         document.getElementById('urlArea').classList.remove('hidden');
       };
     }
 
+    // 🎯 あみだくじモード
     function startAmidakuji(config) {
       adminDiv.classList.add('hidden');
       playDiv.classList.remove('hidden');
@@ -70,7 +76,7 @@
       const { players, results, fixed } = config;
       const columns = players.length;
 
-      // ✅ 固定サイズで描画
+      // 固定サイズで描画
       canvas.width = 600;
       canvas.height = 400;
 
@@ -80,6 +86,7 @@
 
       for (let i = 0; i < columns; i++) lines.push([]);
 
+      // ランダム横線
       for (let y = 1; y < 14; y++) {
         if (Math.random() < 0.5) {
           const pos = Math.floor(Math.random() * (columns - 1));
@@ -172,13 +179,19 @@
       }
     }
 
+    // 起動処理
     window.onload = () => {
       const hash = location.hash;
-      if (hash && (hash.startsWith('#data=') || hash.startsWith('#cfg='))) {
-        const encoded = hash.replace(/^#(data|cfg)=/, '');
-        const decoded = atob(decodeURIComponent(encoded));
-        const config = JSON.parse(decoded);
-        startAmidakuji(config);
+      if (hash && hash.startsWith('#data=')) {
+        try {
+          const encoded = hash.replace(/^#data=/, '');
+          const decoded = decodeURIComponent(escape(atob(decodeURIComponent(encoded))));
+          const config = JSON.parse(decoded);
+          startAmidakuji(config);
+        } catch (e) {
+          alert('データの読み込みに失敗しました。');
+          initAdminMode();
+        }
       } else {
         initAdminMode();
       }
