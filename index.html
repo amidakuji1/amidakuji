@@ -47,24 +47,41 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
+    // ✅ UTF-8対応Base64エンコード／デコード関数
+    function encodeBase64Unicode(str) {
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+    function decodeBase64Unicode(str) {
+      return decodeURIComponent(escape(atob(str)));
+    }
+
     // 🎯 管理画面モード
     function initAdminMode() {
       adminDiv.classList.remove('hidden');
       playDiv.classList.add('hidden');
 
       document.getElementById('generate').onclick = () => {
-        const players = document.getElementById('players').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-        const results = document.getElementById('results').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-        const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-        const fixed = {};
-        for (let i = 0; i < fixedPairs.length; i += 2) {
-          if (fixedPairs[i] && fixedPairs[i + 1]) fixed[fixedPairs[i]] = fixedPairs[i + 1];
+        try {
+          const players = document.getElementById('players').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+          const results = document.getElementById('results').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+          const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+          const fixed = {};
+          for (let i = 0; i < fixedPairs.length; i += 2) {
+            if (fixedPairs[i] && fixedPairs[i + 1]) fixed[fixedPairs[i]] = fixedPairs[i + 1];
+          }
+
+          const config = { players, results, fixed };
+          const encoded = encodeURIComponent(encodeBase64Unicode(JSON.stringify(config)));
+
+          // ✅ GitHub Pages公開URL（固定）
+          const baseURL = "https://amidakuji1.github.io/amidakuji/";
+          const url = `${baseURL}#data=${encoded}`;
+
+          document.getElementById('shareUrl').value = url;
+          document.getElementById('urlArea').classList.remove('hidden');
+        } catch (e) {
+          alert('URL生成中にエラーが発生しました: ' + e.message);
         }
-        const config = { players, results, fixed };
-        const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(config)))));
-        const url = `${location.origin}${location.pathname}#data=${encoded}`;
-        document.getElementById('shareUrl').value = url;
-        document.getElementById('urlArea').classList.remove('hidden');
       };
     }
 
@@ -76,7 +93,6 @@
       const { players, results, fixed } = config;
       const columns = players.length;
 
-      // 固定サイズで描画
       canvas.width = 600;
       canvas.height = 400;
 
@@ -185,11 +201,11 @@
       if (hash && hash.startsWith('#data=')) {
         try {
           const encoded = hash.replace(/^#data=/, '');
-          const decoded = decodeURIComponent(escape(atob(decodeURIComponent(encoded))));
+          const decoded = decodeBase64Unicode(decodeURIComponent(encoded));
           const config = JSON.parse(decoded);
           startAmidakuji(config);
         } catch (e) {
-          alert('データの読み込みに失敗しました。');
+          alert('データの読み込みに失敗しました。設定モードに戻ります。');
           initAdminMode();
         }
       } else {
