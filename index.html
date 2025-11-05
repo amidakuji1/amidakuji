@@ -48,25 +48,21 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
-    // ✅ UTF-8安全なBase64（日本語対応・どのブラウザでもOK）
     function safeBase64Encode(obj) {
       const json = JSON.stringify(obj);
-      const encoded = encodeURIComponent(json)
-        .replace(/%([0-9A-F]{2})/g, (_, p1) =>
-          String.fromCharCode(parseInt(p1, 16))
-        );
+      const encoded = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+        String.fromCharCode(parseInt(p1, 16))
+      );
       return btoa(encoded);
     }
     function safeBase64Decode(str) {
       const decoded = atob(str);
-      const percentEncoded = decoded
-        .split('')
+      const percentEncoded = decoded.split('')
         .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('');
       return JSON.parse(decodeURIComponent(percentEncoded));
     }
 
-    // 🎯 管理画面モード
     function initAdminMode() {
       adminDiv.classList.remove('hidden');
       playDiv.classList.add('hidden');
@@ -83,8 +79,6 @@
 
           const config = { players, results, fixed };
           const encoded = encodeURIComponent(safeBase64Encode(config));
-
-          // ✅ GitHub Pages公開用URL
           const baseURL = "https://amidakuji1.github.io/amidakuji/";
           const url = `${baseURL}#data=${encoded}`;
 
@@ -96,7 +90,6 @@
       };
     }
 
-    // 🎯 あみだくじ本体
     function startAmidakuji(config) {
       adminDiv.classList.add('hidden');
       playDiv.classList.remove('hidden');
@@ -109,7 +102,6 @@
       const lines = [];
       for (let i = 0; i < columns; i++) lines.push([]);
 
-      // 横線ランダム生成
       for (let y = 1; y < 14; y++) {
         if (Math.random() < 0.5) {
           const pos = Math.floor(Math.random() * (columns - 1));
@@ -122,7 +114,6 @@
 
       function drawLines() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // 縦線
         for (let i = 0; i < columns; i++) {
           const x = spacingX * (i + 1);
           ctx.beginPath();
@@ -130,7 +121,6 @@
           ctx.lineTo(x, spacingY * 14);
           ctx.stroke();
         }
-        // 横線
         for (let i = 0; i < lines.length; i++) {
           for (const y of lines[i]) {
             ctx.beginPath();
@@ -143,7 +133,6 @@
 
       drawLines();
 
-      // 結果対応表
       const mapping = {};
       const shuffled = [...results];
       for (const name in fixed) {
@@ -154,7 +143,6 @@
       const remainingPlayers = players.filter(p => !fixed[p]);
       for (const p of remainingPlayers) mapping[p] = shuffled.pop();
 
-      // ボタン
       const btnContainer = document.getElementById('playerButtons');
       btnContainer.innerHTML = '';
       const resultDisplay = document.getElementById('resultDisplay');
@@ -167,9 +155,10 @@
         btnContainer.appendChild(btn);
       });
 
-      // 経路アニメーション（線に正確追従）
       function animatePath(name) {
-        drawLines();
+        drawLines(); // 🔹 まず赤線リセット
+        resultDisplay.textContent = ""; // 🔹 結果もリセット
+
         let col = players.indexOf(name);
         let x = spacingX * (col + 1);
         let y = spacingY;
@@ -198,7 +187,10 @@
 
         function step() {
           if (i >= path.length - 1) {
-            resultDisplay.textContent = `${name} の結果：${mapping[name]}`;
+            resultDisplay.innerHTML = `
+              <p><b>参加者：</b>${name}</p>
+              <p><b>結果：</b>${mapping[name]}</p>
+            `;
             return;
           }
           ctx.beginPath();
@@ -212,7 +204,6 @@
       }
     }
 
-    // 起動
     window.onload = () => {
       const hash = location.hash;
       if (hash && hash.startsWith('#data=')) {
