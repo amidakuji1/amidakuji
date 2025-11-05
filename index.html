@@ -36,7 +36,7 @@
 
   <div id="play" class="hidden w-full max-w-3xl bg-white shadow-lg rounded-2xl p-6 mt-4 fade-in">
     <h2 class="text-xl font-bold mb-2 text-center">あみだくじ</h2>
-    <canvas id="amidakuji"></canvas>
+    <canvas id="amidakuji" width="600" height="400"></canvas>
     <div id="playerButtons" class="flex justify-center space-x-2 mt-4"></div>
     <div id="resultDisplay" class="text-center mt-4 text-lg font-semibold"></div>
   </div>
@@ -47,15 +47,20 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
-    // ✅ UTF-8対応Base64エンコード／デコード関数
+    // ✅ 日本語完全対応 Base64
     function encodeBase64Unicode(str) {
-      return btoa(unescape(encodeURIComponent(str)));
+      const bytes = new TextEncoder().encode(str);
+      let binary = '';
+      bytes.forEach(b => binary += String.fromCharCode(b));
+      return btoa(binary);
     }
     function decodeBase64Unicode(str) {
-      return decodeURIComponent(escape(atob(str)));
+      const binary = atob(str);
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
     }
 
-    // 🎯 管理画面モード
+    // 🎯 管理画面
     function initAdminMode() {
       adminDiv.classList.remove('hidden');
       playDiv.classList.add('hidden');
@@ -73,7 +78,7 @@
           const config = { players, results, fixed };
           const encoded = encodeURIComponent(encodeBase64Unicode(JSON.stringify(config)));
 
-          // ✅ GitHub Pages公開URL（固定）
+          // ✅ 公開用URL（リポジトリに合わせて変更可）
           const baseURL = "https://amidakuji1.github.io/amidakuji/";
           const url = `${baseURL}#data=${encoded}`;
 
@@ -85,7 +90,7 @@
       };
     }
 
-    // 🎯 あみだくじモード
+    // 🎯 あみだくじ画面
     function startAmidakuji(config) {
       adminDiv.classList.add('hidden');
       playDiv.classList.remove('hidden');
@@ -93,16 +98,13 @@
       const { players, results, fixed } = config;
       const columns = players.length;
 
-      canvas.width = 600;
-      canvas.height = 400;
-
       const spacingX = canvas.width / (columns + 1);
       const spacingY = canvas.height / 15;
       const lines = [];
 
       for (let i = 0; i < columns; i++) lines.push([]);
 
-      // ランダム横線
+      // ランダム横線生成
       for (let y = 1; y < 14; y++) {
         if (Math.random() < 0.5) {
           const pos = Math.floor(Math.random() * (columns - 1));
@@ -115,12 +117,15 @@
 
       function drawLines() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 縦線
         for (let i = 0; i < columns; i++) {
+          const x = spacingX * (i + 1);
           ctx.beginPath();
-          ctx.moveTo(spacingX * (i + 1), spacingY);
-          ctx.lineTo(spacingX * (i + 1), spacingY * 14);
+          ctx.moveTo(x, spacingY);
+          ctx.lineTo(x, spacingY * 14);
           ctx.stroke();
         }
+        // 横線
         for (let i = 0; i < lines.length; i++) {
           for (const y of lines[i]) {
             ctx.beginPath();
@@ -133,6 +138,7 @@
 
       drawLines();
 
+      // 結果マッピング
       const mapping = {};
       const shuffled = [...results];
       for (const name in fixed) {
@@ -140,12 +146,10 @@
         const idx = shuffled.indexOf(fixed[name]);
         if (idx !== -1) shuffled.splice(idx, 1);
       }
-
       const remainingPlayers = players.filter(p => !fixed[p]);
-      for (const p of remainingPlayers) {
-        mapping[p] = shuffled.pop();
-      }
+      for (const p of remainingPlayers) mapping[p] = shuffled.pop();
 
+      // ボタン生成
       const btnContainer = document.getElementById('playerButtons');
       btnContainer.innerHTML = '';
       const resultDisplay = document.getElementById('resultDisplay');
@@ -158,6 +162,7 @@
         btnContainer.appendChild(btn);
       });
 
+      // 🌀 経路アニメーション（黒線上を正確にトレース）
       function animatePath(name) {
         drawLines();
         let col = players.indexOf(name);
@@ -167,17 +172,28 @@
 
         for (let i = 1; i <= 14; i++) {
           y = spacingY * i;
+          // 横線が右にある場合
           if (lines[col].includes(i)) {
+            path.push([x, y]);
             x += spacingX;
+            path.push([x, y]);
             col++;
-          } else if (col > 0 && lines[col - 1].includes(i)) {
-            x -= spacingX;
-            col--;
           }
-          path.push([x, y]);
+          // 横線が左にある場合
+          else if (col > 0 && lines[col - 1].includes(i)) {
+            path.push([x, y]);
+            x -= spacingX;
+            path.push([x, y]);
+            col--;
+          } else {
+            path.push([x, y]);
+          }
         }
 
         let i = 0;
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 3;
+
         function step() {
           if (i >= path.length - 1) {
             resultDisplay.textContent = `${name} の結果：${mapping[name]}`;
@@ -186,10 +202,9 @@
           ctx.beginPath();
           ctx.moveTo(path[i][0], path[i][1]);
           ctx.lineTo(path[i + 1][0], path[i + 1][1]);
-          ctx.strokeStyle = 'red';
           ctx.stroke();
           i++;
-          setTimeout(step, 100);
+          setTimeout(step, 80);
         }
         step();
       }
