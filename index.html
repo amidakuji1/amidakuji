@@ -48,7 +48,6 @@
     const canvas = document.getElementById('amidakuji');
     const ctx = canvas.getContext('2d');
 
-    // 安全なBase64(JSON)エンコード／デコード（日本語対応）
     function safeBase64Encode(obj) {
       const json = JSON.stringify(obj);
       const encoded = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
@@ -56,6 +55,7 @@
       );
       return btoa(encoded);
     }
+
     function safeBase64Decode(str) {
       const decoded = atob(str);
       const percentEncoded = decoded.split('')
@@ -64,7 +64,6 @@
       return JSON.parse(decodeURIComponent(percentEncoded));
     }
 
-    // グローバルなアニメーショントークン（新しい再生が来たら古い再生を止める）
     let globalAnimToken = 0;
 
     function initAdminMode() {
@@ -72,29 +71,21 @@
       playDiv.classList.add('hidden');
 
       document.getElementById('generate').onclick = () => {
-        try {
-          const players = document.getElementById('players').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-          const results = document.getElementById('results').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-          const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
-          const fixed = {};
-          for (let i = 0; i < fixedPairs.length; i += 2) {
-            if (fixedPairs[i] && fixedPairs[i + 1]) fixed[fixedPairs[i]] = fixedPairs[i + 1];
-          }
-
-          const config = { players, results, fixed };
-          const encoded = encodeURIComponent(safeBase64Encode(config));
-          // ここで baseURL をあなたの GitHub Pages に合わせる
-          const baseURL = "https://amidakuji1.github.io/amidakuji/";
-          const url = `${baseURL}#data=${encoded}`;
-
-          document.getElementById('shareUrl').value = url;
-          document.getElementById('urlArea').classList.remove('hidden');
-          // 選択したら自動で選択/コピーを試みる（ユーザー許可次第）
-          try { document.getElementById('shareUrl').select(); document.execCommand('copy'); } catch(e){/*ignore*/}
-
-        } catch (e) {
-          alert("URL生成中にエラーが発生しました: " + e.message);
+        const players = document.getElementById('players').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const results = document.getElementById('results').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const fixedPairs = document.getElementById('fixed').value.trim().split(/\n|,/).map(v => v.trim()).filter(v => v);
+        const fixed = {};
+        for (let i = 0; i < fixedPairs.length; i += 2) {
+          if (fixedPairs[i] && fixedPairs[i + 1]) fixed[fixedPairs[i]] = fixedPairs[i + 1];
         }
+
+        const config = { players, results, fixed };
+        const encoded = encodeURIComponent(safeBase64Encode(config));
+        const baseURL = "https://amidakuji1.github.io/amidakuji/";
+        const url = `${baseURL}#data=${encoded}`;
+
+        document.getElementById('shareUrl').value = url;
+        document.getElementById('urlArea').classList.remove('hidden');
       };
     }
 
@@ -103,14 +94,11 @@
       playDiv.classList.remove('hidden');
 
       const { players, results, fixed } = config;
-      const columns = Math.max(1, players.length);
-
-      // compute spacing based on canvas pixel size
+      const columns = players.length;
       const spacingX = canvas.width / (columns + 1);
       const spacingY = canvas.height / 15;
-      const lines = Array.from({length: columns}, ()=>[]);
+      const lines = Array.from({ length: columns }, () => []);
 
-      // random horizontal rungs
       for (let y = 1; y < 14; y++) {
         if (Math.random() < 0.5 && columns > 1) {
           const pos = Math.floor(Math.random() * (columns - 1));
@@ -118,13 +106,10 @@
         }
       }
 
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = '#333';
-
       function drawLines() {
-        // draw base (clears previous red path as well)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // verticals
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#333';
         for (let i = 0; i < columns; i++) {
           const x = spacingX * (i + 1);
           ctx.beginPath();
@@ -132,7 +117,6 @@
           ctx.lineTo(x, spacingY * 14);
           ctx.stroke();
         }
-        // horizontals
         for (let i = 0; i < lines.length; i++) {
           for (const y of lines[i]) {
             ctx.beginPath();
@@ -145,7 +129,6 @@
 
       drawLines();
 
-      // mapping: apply fixed then random
       const mapping = {};
       const shuffled = [...results];
       for (const name in fixed) {
@@ -154,11 +137,8 @@
         if (idx !== -1) shuffled.splice(idx, 1);
       }
       const remainingPlayers = players.filter(p => !fixed[p]);
-      for (const p of remainingPlayers) {
-        mapping[p] = shuffled.pop();
-      }
+      for (const p of remainingPlayers) mapping[p] = shuffled.pop();
 
-      // build buttons
       const btnContainer = document.getElementById('playerButtons');
       btnContainer.innerHTML = '';
       const resultDisplay = document.getElementById('resultDisplay');
@@ -171,18 +151,13 @@
         btnContainer.appendChild(btn);
       });
 
-      // animate path following the exact black lines
       function animatePath(name) {
-        // increment token to cancel any running animation
         globalAnimToken++;
         const myToken = globalAnimToken;
-
-        // reset base drawing (clears previous red)
+        // 🔹 一旦すべて黒線に戻す
         drawLines();
-        // clear result text immediately
         resultDisplay.innerHTML = '';
 
-        // compute path points precisely (x,y) following rungs
         let col = players.indexOf(name);
         let x = spacingX * (col + 1);
         let y = spacingY;
@@ -190,67 +165,49 @@
 
         for (let i = 1; i <= 14; i++) {
           y = spacingY * i;
-          // if there's a rung to the right at this row for current col
-          if (lines[col] && lines[col].includes(i)) {
-            // go horizontal to right
+          if (lines[col].includes(i)) {
             path.push([x, y]);
             x += spacingX;
             path.push([x, y]);
-            col = col + 1;
-          }
-          // else if there's a rung to the left (in previous column)
-          else if (col > 0 && lines[col - 1] && lines[col - 1].includes(i)) {
+            col++;
+          } else if (col > 0 && lines[col - 1].includes(i)) {
             path.push([x, y]);
             x -= spacingX;
             path.push([x, y]);
-            col = col - 1;
+            col--;
           } else {
             path.push([x, y]);
           }
         }
 
-        // draw animation step-by-step; check token each step to abort if changed
-        let idx = 0;
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 3;
-
+        let i = 0;
         function step() {
-          if (myToken !== globalAnimToken) {
-            // a new animation started — abort current animation cleanly
+          if (myToken !== globalAnimToken) return;
+          if (i >= path.length - 1) {
+            resultDisplay.innerHTML = `<p><b>参加者：</b>${name}</p><p><b>結果：</b>${mapping[name]}</p>`;
             return;
           }
-          if (idx >= path.length - 1) {
-            // finished — show participant/result
-            const res = mapping[name] !== undefined ? mapping[name] : '(未割当)';
-            resultDisplay.innerHTML = `<p><b>参加者：</b> ${escapeHtml(name)}</p><p><b>結果：</b> ${escapeHtml(res)}</p>`;
-            return;
-          }
+          ctx.strokeStyle = 'red';
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.moveTo(path[idx][0], path[idx][1]);
-          ctx.lineTo(path[idx + 1][0], path[idx + 1][1]);
+          ctx.moveTo(path[i][0], path[i][1]);
+          ctx.lineTo(path[i + 1][0], path[i + 1][1]);
           ctx.stroke();
-          idx++;
-          // use setTimeout to keep previous cadence; token check will stop if needed
+          i++;
           setTimeout(step, 80);
         }
-
         step();
       }
     }
 
-    // small helper to escape HTML in displayed text
-    function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-    // startup: detect hash and start appropriate mode
     window.onload = () => {
       const hash = location.hash;
-      if (hash && (hash.startsWith('#data=') || hash.startsWith('#cfg='))) {
+      if (hash && hash.startsWith('#data=')) {
         try {
-          const encoded = hash.replace(/^#(data|cfg)=/, '');
+          const encoded = hash.replace(/^#data=/, '');
           const config = safeBase64Decode(decodeURIComponent(encoded));
           startAmidakuji(config);
-        } catch (e) {
-          alert('データの読み込みに失敗しました。設定モードに戻ります。');
+        } catch {
           initAdminMode();
         }
       } else {
